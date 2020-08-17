@@ -1,0 +1,30 @@
+{
+  "name": "chatlinse",
+  "version": "1.0.0",
+  "description": "multipeer chat",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stevansehn/chatlinse.git"
+  },
+  "keywords": [
+    "chat",
+    "linse",
+    "socketio",
+    "webrtc"
+  ],
+  "author": "Stevan Sehn",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/stevansehn/chatlinse/issues"
+  },
+  "homepage": "https://github.com/stevansehn/chatlinse#readme",
+  "dependencies": {
+    "socket.io": "^2.3.0",
+    "static-server": "^2.2.1"
+  }
+}
