@@ -24,6 +24,7 @@
   },
   "homepage": "https://github.com/stevansehn/chatlinse#readme",
   "dependencies": {
+    "node-static": "^0.7.11",
     "socket.io": "^2.3.0",
     "static-server": "^2.2.1"
   }
