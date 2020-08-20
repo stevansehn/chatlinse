@@ -7,28 +7,27 @@ window.onbeforeunload = function (e) {
 };
 
 // Data channel information
-var sendChannel, receiveChannel;
-// var sendButton = document.getElementById("sendButton");
-// var sendTextarea = document.getElementById("dataChannelSend");
-// var receiveTextarea = document.getElementById("dataChannelReceive");
+var sendChannel, receiveChannel, sendChannel2, receiveChannel2;
+// var startButton = document.getElementById("startButton");
+var sendButton = document.getElementById("sendButton");
+var sendTextarea = document.getElementById("dataChannelSend");
+var receiveTextarea = document.getElementById("dataChannelReceive");
 
 // HTML5 <video> elements
-// const video1 = document.querySelector('video#video1');
-// const video2 = document.querySelector('video#video2');
-// const video3 = document.querySelector('video#video3');
-
-var localVideo = document.querySelector("#video1");
-var remoteVideo = document.querySelector("#video2");
-var remoteVideo2 = document.querySelector("#video3");
+const video1 = document.querySelector('video#video1');
+const video2 = document.querySelector('video#video2');
+const video3 = document.querySelector('video#video3');
 
 // Handler associated with 'Send' button
-// sendButton.onclick = sendData;
+// startButton.disabled = false;
+// startButton.onclick = start;
+sendButton.onclick = sendData;
 
 // Flags...
 var isChannelReady;
+var isChannel2Ready;
 var isInitiator;
 var isStarted;
-var is2Client;
 
 // WebRTC data structures
 // Streams
@@ -36,8 +35,14 @@ var localStream;
 var remoteStream;
 var remoteStream2;
 // Peer Connection
-var pc;
-var pc2;
+let pc1Local;
+let pc1Remote;
+let pc2Local;
+let pc2Remote;
+const offerOptions = {
+  offerToReceiveAudio: 1,
+  offerToReceiveVideo: 1
+};
 
 /////////////////////////////////////////////
 
@@ -54,10 +59,9 @@ if (room !== "") {
 }
 
 // Set getUserMedia constraints
-var constraints = { video: true };
+var constraints = { audio: false, video: true };
 
 // Call getUserMedia()
-// navigator.getUserMedia(constraints, handleUserMedia, handleUserMediaError);
 navigator.mediaDevices
   .getUserMedia(constraints)
   .then(handleUserMedia)
@@ -71,11 +75,8 @@ console.log("Getting user media with constraints", constraints);
 // getUserMedia() handlers...
 /////////////////////////////////////////////
 function handleUserMedia(stream) {
-  // video1.srcObject = stream;
-  // window.localStream = stream;
-  localStream = stream;
-  // attachMediaStream(localVideo, stream);
-  localVideo.srcObject = stream;
+  video1.srcObject = stream;
+  window.localStream = stream;
   console.log("Adding local stream.");
   sendMessage("got user media");
   if (isInitiator) {
@@ -122,16 +123,11 @@ socket.on("joined", function (room) {
   isChannelReady = true;
 });
 
-// Handle third peer/2nd Client
-socket.on("joined2", function (room) {
-  console.log("This peer has joined room " + room);
-  is2Client = true;
-});
-
 // Server-sent log message...
 socket.on("log", function (array) {
   console.log.apply(console, array);
 });
+
 
 // Receive message from the other peer via the signalling server
 socket.on("message", function (message) {
@@ -142,17 +138,42 @@ socket.on("message", function (message) {
     if (!isInitiator && !isStarted) {
       checkAndStart();
     }
-    pc.setRemoteDescription(new RTCSessionDescription(message));
+    pc1Local.setRemoteDescription(new RTCSessionDescription(message));
     doAnswer();
   } else if (message.type === "answer" && isStarted) {
-    pc.setRemoteDescription(new RTCSessionDescription(message));
-  } else if (message.type === "candidate" && isStarted) {
-    var candidate = new RTCIceCandidate({
+    pc1Local.setRemoteDescription(new RTCSessionDescription(message));
+  } else if (message.type === "candidate local 1" && isStarted) {
+    console.log("received candidate local 1 message")
+    var candidate1 = new RTCIceCandidate({
       sdpMLineIndex: message.label,
       candidate: message.candidate,
     });
-    pc.addIceCandidate(candidate);
-  } else if (message === "bye" && isStarted) {
+    handleCandidate(candidate1, pc1Remote, 'pc1: ', 'local');
+  } else if (message.type === "candidate remote 1" && isStarted) {
+    console.log("received candidate remote 1 message")
+    var candidate2 = new RTCIceCandidate({
+      sdpMLineIndex: message.label,
+      candidate: message.candidate,
+    });
+    handleCandidate(candidate2, pc1Local, 'pc1: ', 'remote');
+  }
+  else if (message.type === "candidate local 2" && isStarted) {
+    console.log("received candidate local 2 message")
+    var candidate3 = new RTCIceCandidate({
+      sdpMLineIndex: message.label,
+      candidate: message.candidate,
+    });
+    handleCandidate(candidate3, pc2Remote, 'pc2: ', 'local');
+  }
+  else if (message.type === "candidate remote 2" && isStarted) {
+    console.log("received candidate remote 2 message")
+    var candidate4 = new RTCIceCandidate({
+      sdpMLineIndex: message.label,
+      candidate: message.candidate,
+    });
+    handleCandidate(candidate4, pc2Local, 'pc2: ', 'remote');
+  }
+  else if (message === "bye" && isStarted) {
     handleRemoteHangup();
   }
 });
@@ -170,9 +191,17 @@ function sendMessage(message) {
 ////////////////////////////////////////////////////
 // Channel negotiation trigger function
 function checkAndStart() {
+  console.log("checkAndStart() first time");
   if (!isStarted && typeof localStream != "undefined" && isChannelReady) {
+    console.log("checkAndStart() second time");
     createPeerConnection();
-    pc.addStream(localStream);
+
+    window.localStream.getTracks().forEach(track => pc1Local.addTrack(track, window.localStream));
+    console.log('Adding local stream to pc1Local');
+
+    window.localStream.getTracks().forEach(track => pc2Local.addTrack(track, window.localStream));
+    console.log('Adding local stream to pc2Local');
+
     isStarted = true;
     if (isInitiator) {
       doCall();
@@ -183,60 +212,69 @@ function checkAndStart() {
 /////////////////////////////////////////////////////////
 // Peer Connection management...
 function createPeerConnection() {
+  const servers = null;
+
   try {
-    pc = new RTCPeerConnection();
-    pc.onicecandidate = handleIceCandidate;
+    pc1Local = new RTCPeerConnection(servers);
+    pc1Remote = new RTCPeerConnection(servers);
+    pc1Remote.ontrack = gotRemoteStream1;
+    pc1Local.onicecandidate = iceCallback1Local;
+    pc1Remote.onicecandidate = iceCallback1Remote;
+    console.log('pc1: created local and remote peer connection objects');
+
   } catch (e) {
-    console.log("Failed to create PeerConnection, exception: " + e.message);
+    console.log("Failed to create local and remote peer connection objects, exception: " + e.message);
     alert("Cannot create RTCPeerConnection object.");
     return;
   }
-  pc.onaddstream = handleRemoteStreamAdded;
-  pc.onremovestream = handleRemoteStreamRemoved;
 
-  if (is2Client) {
-    try {
-      pc2 = new RTCPeerConnection();
-      pc2.onicecandidate = handleIceCandidate;
-    } catch (e) {
-      console.log("Failed to create PeerConnection, exception: " + e.message);
-      alert("Cannot create RTCPeerConnection object.");
-      return;
-    }
-    pc2.onaddstream = handleRemoteStreamAdded2;
-    pc2.onremovestream = handleRemoteStreamRemoved2;
+  try {
+    pc2Local = new RTCPeerConnection(servers);
+    pc2Remote = new RTCPeerConnection(servers);
+    pc2Remote.ontrack = gotRemoteStream2;
+    pc2Local.onicecandidate = iceCallback2Local;
+    pc2Remote.onicecandidate = iceCallback2Remote;
+    console.log('pc2: created local and remote peer connection objects');
+
+  } catch (e) {
+    console.log("Failed to create local and remote peer connection objects, exception: " + e.message);
+    alert("Cannot create RTCPeerConnection object.");
+    return;
   }
 
-  // if (isInitiator) {
-  //   try {
-  //     // Create a reliable data channel
-  //     sendChannel = pc.createDataChannel("sendDataChannel");
-  //     trace("Created send data channel");
-  //   } catch (e) {
-  //     alert("Failed to create data channel. ");
-  //     trace("createDataChannel() failed with exception: " + e.message);
-  //   }
-  //   sendChannel.onopen = handleSendChannelStateChange;
-  //   sendChannel.onmessage = handleMessage;
-  //   sendChannel.onclose = handleSendChannelStateChange;
-  // } else {
-  //   // Joiner
-  //   pc.ondatachannel = gotReceiveChannel;
-  // }
+  if (isInitiator) {
+    try {
+      // Create a reliable data channel
+      sendChannel = pc1Local.createDataChannel("sendDataChannel");
+      console.log("Created send data channel");
+    } catch (e) {
+      alert("Failed to create data channel. ");
+      console.log("createDataChannel() failed with exception: " + e.message);
+    }
+    sendChannel.onopen = handleSendChannelStateChange;
+    sendChannel.onmessage = handleMessage;
+    sendChannel.onclose = handleSendChannelStateChange;
+  } else {
+    // Joiner
+    pc1Local.ondatachannel = gotReceiveChannel;
+  }
 }
 
-// // Data channel management
-// function sendData() {
-// var data = sendTextarea.value;
-// if (isInitiator) sendChannel.send(data);
-// else receiveChannel.send(data);
-// trace("Sent data: " + data);
-// }
+// Data channel management
+function sendData() {
+  var data = sendTextarea.value;
+  if (isInitiator) {
+    sendChannel.send(data);
+  }
+  else {
+    receiveChannel.send(data);
+  }
+  console.log("Sent data: " + data);
+}
 
 // Handlers...
-
 function gotReceiveChannel(event) {
-  trace("Receive Channel Callback");
+  console.log("Receive Channel Callback");
   receiveChannel = event.channel;
   receiveChannel.onmessage = handleMessage;
   receiveChannel.onopen = handleReceiveChannelStateChange;
@@ -244,46 +282,46 @@ function gotReceiveChannel(event) {
 }
 
 function handleMessage(event) {
-  trace("Received message: " + event.data);
+  console.log("Received message: " + event.data);
   receiveTextarea.value += event.data + "\n";
 }
 
 function handleSendChannelStateChange() {
   var readyState = sendChannel.readyState;
-  trace("Send channel state is: " + readyState);
+  console.log("Send channel state is: " + readyState);
   // If channel ready, enable user's input
   if (readyState == "open") {
-    // dataChannelSend.disabled = false;
-    // dataChannelSend.focus();
-    // dataChannelSend.placeholder = "";
-    // sendButton.disabled = false;
+    dataChannelSend.disabled = false;
+    dataChannelSend.focus();
+    dataChannelSend.placeholder = "";
+    sendButton.disabled = false;
   } else {
-    // dataChannelSend.disabled = true;
-    // sendButton.disabled = true;
+    dataChannelSend.disabled = true;
+    sendButton.disabled = true;
   }
 }
 
 function handleReceiveChannelStateChange() {
   var readyState = receiveChannel.readyState;
-  trace("Receive channel state is: " + readyState);
+  console.log("Receive channel state is: " + readyState);
   // If channel ready, enable user's input
   if (readyState == "open") {
-    // dataChannelSend.disabled = false;
-    // dataChannelSend.focus();
-    // dataChannelSend.placeholder = "";
-    // sendButton.disabled = false;
+    dataChannelSend.disabled = false;
+    dataChannelSend.focus();
+    dataChannelSend.placeholder = "";
+    sendButton.disabled = false;
   } else {
-    // dataChannelSend.disabled = true;
-    // sendButton.disabled = true;
+    dataChannelSend.disabled = true;
+    sendButton.disabled = true;
   }
 }
 
 // ICE candidates management
-function handleIceCandidate(event) {
+function iceCallback1Local(event) {
   console.log("handleIceCandidate event: ", event);
   if (event.candidate) {
     sendMessage({
-      type: "candidate",
+      type: "candidate local 1",
       label: event.candidate.sdpMLineIndex,
       id: event.candidate.sdpMid,
       candidate: event.candidate.candidate,
@@ -293,66 +331,132 @@ function handleIceCandidate(event) {
   }
 }
 
+function iceCallback1Remote(event) {
+  console.log("handleIceCandidate event: ", event);
+  if (event.candidate) {
+    sendMessage({
+      type: "candidate remote 1",
+      label: event.candidate.sdpMLineIndex,
+      id: event.candidate.sdpMid,
+      candidate: event.candidate.candidate,
+    });
+  } else {
+    console.log("End of candidates.");
+  }
+}
+
+function iceCallback2Local(event) {
+  console.log("handleIceCandidate event: ", event);
+  if (event.candidate) {
+    sendMessage({
+      type: "candidate local 2",
+      label: event.candidate.sdpMLineIndex,
+      id: event.candidate.sdpMid,
+      candidate: event.candidate.candidate,
+    });
+  } else {
+    console.log("End of candidates.");
+  }
+}
+
+function iceCallback2Remote(event) {
+  console.log("handleIceCandidate event: ", event);
+  if (event.candidate) {
+    sendMessage({
+      type: "candidate remote 2",
+      label: event.candidate.sdpMLineIndex,
+      id: event.candidate.sdpMid,
+      candidate: event.candidate.candidate,
+    });
+  } else {
+    console.log("End of candidates.");
+  }
+}
+
+function handleCandidate(candidate, dest, prefix, type) {
+  dest.addIceCandidate(candidate)
+    .then(onAddIceCandidateSuccess, onAddIceCandidateError);
+  console.log(`${prefix}New ${type} ICE candidate: ${candidate ? candidate.candidate : '(null)'}`);
+}
+
+function onAddIceCandidateSuccess() {
+  console.log('AddIceCandidate success.');
+}
+
+function onAddIceCandidateError(error) {
+  console.log(`Failed to add ICE candidate: ${error.toString()}`);
+}
+
 // Create Offer
-function doCall() {
+function doCall() {ff
   console.log("Creating Offer...");
-  pc.createOffer(setLocalAndSendMessage, onSignalingError);
+  pc1Local
+    .createOffer(offerOptions)
+    .then(gotDescription1Local, onCreateSessionDescriptionError);
+  pc2Local.createOffer(offerOptions)
+    .then(gotDescription2Local, onCreateSessionDescriptionError);
 }
 
 // Signalling error handler
-function onSignalingError(error) {
-  console.log("Failed to create signaling message : " + error.name);
+function onCreateSessionDescriptionError(error) {
+  console.log(`Failed to create session description: ${error.toString()}`);
+}
+
+function gotDescription1Local(desc) {
+  pc1Local.setLocalDescription(desc);
+  console.log(`Offer from pc1Local\n${desc.sdp}`);
+  pc1Remote.setRemoteDescription(desc);
+  // Since the 'remote' side has no media stream we need
+  // to pass in the right constraints in order for it to
+  // accept the incoming offer of audio and video.
 }
 
 // Create Answer
 function doAnswer() {
   console.log("Sending answer to peer.");
-  pc.createAnswer(setLocalAndSendMessage, onSignalingError);
+  pc1Remote.createAnswer().then(gotDescription1Remote, onCreateSessionDescriptionError);
+  pc2Remote.createAnswer().then(gotDescription2Remote, onCreateSessionDescriptionError);
 }
 
-// Success handler for both createOffer()
-// and createAnswer()
-function setLocalAndSendMessage(sessionDescription) {
-  pc.setLocalDescription(sessionDescription);
-  sendMessage(sessionDescription);
+function gotDescription1Remote(desc) {
+  pc1Remote.setLocalDescription(desc);
+  console.log(`Answer from pc1Remote\n${desc.sdp}`);
+  pc1Local.setRemoteDescription(desc);
+}
+
+function gotDescription2Local(desc) {
+  pc2Local.setLocalDescription(desc);
+  console.log(`Offer from pc2Local\n${desc.sdp}`);
+  pc2Remote.setRemoteDescription(desc);
+  // Since the 'remote' side has no media stream we need
+  // to pass in the right constraints in order for it to
+  // accept the incoming offer of audio and video.
+}
+
+function gotDescription2Remote(desc) {
+  pc2Remote.setLocalDescription(desc);
+  console.log(`Answer from pc2Remote\n${desc.sdp}`);
+  pc2Local.setRemoteDescription(desc);
 }
 
 /////////////////////////////////////////////////////////
 // Remote stream handlers...
 
-function handleRemoteStreamAdded(event) {
-  console.log("Remote stream added.");
-  // attachMediaStream(remoteVideo, event.stream);
-  remoteVideo.srcObject = event.stream;
-  remoteStream = event.stream;
+function gotRemoteStream1(e) {
+  if (video2.srcObject !== e.streams[0]) {
+    video2.srcObject = e.streams[0];
+    console.log('pc1: received remote stream');
+  }
 }
 
-// function handleRemoteStreamAdded(e) {
-//   if (video2.srcObject !== e.streams[0]) {
-//     video2.srcObject = e.streams[0];
-//     console.log('pc: received remote stream');
-//   }
-// }
+function gotRemoteStream2(e) {
+  if (video3.srcObject !== e.streams[0]) {
+    video3.srcObject = e.streams[0];
+    console.log('pc2: received remote stream');
+  }
+}
 
 function handleRemoteStreamRemoved(event) {
-  console.log("Remote stream removed. Event: ", event);
-}
-
-function handleRemoteStreamAdded2(event) {
-  console.log("Remote stream added.");
-  // attachMediaStream(remoteVideo2, event.stream);
-  remoteVideo2.srcObject = event.stream;
-  remoteStream2 = event.stream;
-}
-
-// function handleRemoteStreamAdded2(e) {
-//   if (video3.srcObject !== e.streams[0]) {
-//     video3.srcObject = e.streams[0];
-//     console.log('pc2: received remote stream');
-//   }
-// }
-
-function handleRemoteStreamRemoved2(event) {
   console.log("Remote stream removed. Event: ", event);
 }
 /////////////////////////////////////////////////////////
@@ -376,9 +480,15 @@ function stop() {
   isStarted = false;
   if (sendChannel) sendChannel.close();
   if (receiveChannel) receiveChannel.close();
-  if (pc) pc.close();
-  pc = null;
-  // sendButton.disabled = true;
+  if (sendChannel2) sendChannel2.close();
+  if (receiveChannel2) receiveChannel2.close();
+  pc1Local.close();
+  pc1Remote.close();
+  pc2Local.close();
+  pc2Remote.close();
+  pc1Local = pc1Remote = null;
+  pc2Local = pc2Remote = null;
+  sendButton.disabled = true;
 }
 
 ///////////////////////////////////////////
