@@ -123,11 +123,26 @@ socket.on("joined", function (room) {
   isChannelReady = true;
 });
 
+
+// Handle 'join' message coming back from server:
+// another peer is joining the channel
+socket.on("join 2", function (room) {
+  console.log("Another peer made a request to join room " + room);
+  console.log("This peer is the initiator of room " + room + "!");
+  isChannelReady2 = true;
+});
+
+// Handle 'joined' message coming back from server:
+// this is the second peer joining the channel
+socket.on("joined 2", function (room) {
+  console.log("This peer has joined room " + room);
+  isChannelReady2 = true;
+});
+
 // Server-sent log message...
 socket.on("log", function (array) {
   console.log.apply(console, array);
 });
-
 
 // Receive message from the other peer via the signalling server
 socket.on("message", function (message) {
@@ -192,7 +207,7 @@ function sendMessage(message) {
 // Channel negotiation trigger function
 function checkAndStart() {
   console.log("checkAndStart() first time");
-  if (!isStarted && typeof localStream != "undefined" && isChannelReady) {
+  if (!isStarted && typeof localStream != "undefined" && isChannelReady2) {
     console.log("checkAndStart() second time");
     createPeerConnection();
 
