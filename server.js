@@ -48,9 +48,9 @@ io.sockets.on("connection", function (socket) {
       socket.emit("joined", room);
     } else if (numClients == 2) {
       // Second client joining...
-      io.sockets.in(room).emit("join", room);
+      io.sockets.in(room).emit("join 2", room);
       socket.join(room);
-      socket.emit("joined2", room);
+      socket.emit("joined 2", room);
     } else {
       // max two clients
       socket.emit("full", room);

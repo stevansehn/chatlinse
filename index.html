@@ -1,29 +1,76 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
 
     <title>Chat LINSE</title>
 
     <link rel="icon" sizes="192x192" href="./images/logo.png">
+
 </head>
+
 <body>
     <h1>Chat LINSE</h1>
 
-        <video id="video1" playsinline autoplay muted></video>
-        <video id="video2" playsinline autoplay></video>
-        <video id="video3" playsinline autoplay></video>
-        
-        <!-- <div>
-            <button id="startButton">Start</button>
-            <button id="callButton">Call</button>
-            <button id="hangupButton">Hang Up</button>
-        </div> -->
+    <div id='mainDiv'>
 
-        <script src="/socket.io/socket.io.js"></script>
-        <!-- <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script> -->
-        <script src="./js/client.js" async></script>
+        <table border="1" width="100%">
+            <tr>
+                <th>
+                    Local video
+                </th>
+                <th>
+                    Remote Video 1
+                </th>
+            </tr>
+            <tr>
+                <td>
+                    <video id="video1" autoplay></video>
+                </td>
+                <td>
+                    <video id="video2" autoplay></video>
+                </td>
+            </tr>
+            <tr>
+                <td align="center">
+                    <textarea rows="4" cols="60" id="dataChannelSend" disabled
+                        placeholder="This will be enabled once the data channel is up..."></textarea>
+                </td>
+                <td align="center">
+                    <textarea rows="4" cols="60" id="dataChannelReceive" disabled></textarea>
+                </td>
+            </tr>
+            <tr>
+                <td align="center">
+                    <!-- <button id="startButton">Start</button> -->
+                    <button id="sendButton" disabled>Send</button>
+                </td>
+                <td></td>
+            </tr>
+            <tr>
+                <th>
+                    Remote Video 2
+                </th>
+            </tr>
+            <tr>
+                <td>
+                    <video id="video3" autoplay></video>
+                </td>
+            </tr>
+            <tr>
+                <td align="center">
+                    <textarea rows="4" cols="60" id="dataChannelReceive2" disabled></textarea>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <script src='/socket.io/socket.io.js'></script>
+    <!-- <script src='js/lib/adapter.js'></script> -->
+    <script src='./js/client.js'></script>
 
 </body>
+
 </html>
