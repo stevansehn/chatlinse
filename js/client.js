@@ -25,7 +25,7 @@ sendButton.onclick = sendData;
 
 // Flags...
 var isChannelReady;
-var isChannel2Ready;
+var isChannelReady2;
 var isInitiator;
 var isStarted;
 
@@ -153,41 +153,11 @@ socket.on("message", function (message) {
     if (!isInitiator && !isStarted) {
       checkAndStart();
     }
-    pc1Local.setRemoteDescription(new RTCSessionDescription(message));
-    doAnswer();
+    // pc1Local.setRemoteDescription(new RTCSessionDescription(message));
+    // doAnswer();
   } else if (message.type === "answer" && isStarted) {
-    pc1Local.setRemoteDescription(new RTCSessionDescription(message));
-  } else if (message.type === "candidate local 1" && isStarted) {
-    console.log("received candidate local 1 message")
-    var candidate1 = new RTCIceCandidate({
-      sdpMLineIndex: message.label,
-      candidate: message.candidate,
-    });
-    handleCandidate(candidate1, pc1Remote, 'pc1: ', 'local');
-  } else if (message.type === "candidate remote 1" && isStarted) {
-    console.log("received candidate remote 1 message")
-    var candidate2 = new RTCIceCandidate({
-      sdpMLineIndex: message.label,
-      candidate: message.candidate,
-    });
-    handleCandidate(candidate2, pc1Local, 'pc1: ', 'remote');
-  }
-  else if (message.type === "candidate local 2" && isStarted) {
-    console.log("received candidate local 2 message")
-    var candidate3 = new RTCIceCandidate({
-      sdpMLineIndex: message.label,
-      candidate: message.candidate,
-    });
-    handleCandidate(candidate3, pc2Remote, 'pc2: ', 'local');
-  }
-  else if (message.type === "candidate remote 2" && isStarted) {
-    console.log("received candidate remote 2 message")
-    var candidate4 = new RTCIceCandidate({
-      sdpMLineIndex: message.label,
-      candidate: message.candidate,
-    });
-    handleCandidate(candidate4, pc2Local, 'pc2: ', 'remote');
-  }
+    // pc1Local.setRemoteDescription(new RTCSessionDescription(message));
+  } 
   else if (message === "bye" && isStarted) {
     handleRemoteHangup();
   }
@@ -211,11 +181,16 @@ function checkAndStart() {
     console.log("checkAndStart() second time");
     createPeerConnection();
 
-    window.localStream.getTracks().forEach(track => pc1Local.addTrack(track, window.localStream));
-    console.log('Adding local stream to pc1Local');
+    // window.localStream.getTracks().forEach(track => pc1Local.addTrack(track, window.localStream));
+    // console.log('Adding local stream to pc1Local');
+    // pc1Local
+    //   .createOffer(offerOptions)
+    //   .then(gotDescription1Local, onCreateSessionDescriptionError);
 
-    window.localStream.getTracks().forEach(track => pc2Local.addTrack(track, window.localStream));
-    console.log('Adding local stream to pc2Local');
+    // window.localStream.getTracks().forEach(track => pc2Local.addTrack(track, window.localStream));
+    // console.log('Adding local stream to pc2Local');
+    // pc2Local.createOffer(offerOptions)
+    //   .then(gotDescription2Local, onCreateSessionDescriptionError);
 
     isStarted = true;
     if (isInitiator) {
@@ -237,19 +212,23 @@ function createPeerConnection() {
     pc1Remote.onicecandidate = iceCallback1Remote;
     console.log('pc1: created local and remote peer connection objects');
 
-  } catch (e) {
-    console.log("Failed to create local and remote peer connection objects, exception: " + e.message);
-    alert("Cannot create RTCPeerConnection object.");
-    return;
-  }
-
-  try {
     pc2Local = new RTCPeerConnection(servers);
     pc2Remote = new RTCPeerConnection(servers);
     pc2Remote.ontrack = gotRemoteStream2;
     pc2Local.onicecandidate = iceCallback2Local;
     pc2Remote.onicecandidate = iceCallback2Remote;
     console.log('pc2: created local and remote peer connection objects');
+
+    window.localStream.getTracks().forEach(track => pc1Local.addTrack(track, window.localStream));
+    console.log('Adding local stream to pc1Local');
+    pc1Local
+      .createOffer(offerOptions)
+      .then(gotDescription1Local, onCreateSessionDescriptionError);
+
+    window.localStream.getTracks().forEach(track => pc2Local.addTrack(track, window.localStream));
+    console.log('Adding local stream to pc2Local');
+    pc2Local.createOffer(offerOptions)
+      .then(gotDescription2Local, onCreateSessionDescriptionError);
 
   } catch (e) {
     console.log("Failed to create local and remote peer connection objects, exception: " + e.message);
@@ -333,59 +312,19 @@ function handleReceiveChannelStateChange() {
 
 // ICE candidates management
 function iceCallback1Local(event) {
-  console.log("handleIceCandidate event: ", event);
-  if (event.candidate) {
-    sendMessage({
-      type: "candidate local 1",
-      label: event.candidate.sdpMLineIndex,
-      id: event.candidate.sdpMid,
-      candidate: event.candidate.candidate,
-    });
-  } else {
-    console.log("End of candidates.");
-  }
+  handleCandidate(event.candidate, pc1Remote, 'pc1: ', 'local');
 }
 
 function iceCallback1Remote(event) {
-  console.log("handleIceCandidate event: ", event);
-  if (event.candidate) {
-    sendMessage({
-      type: "candidate remote 1",
-      label: event.candidate.sdpMLineIndex,
-      id: event.candidate.sdpMid,
-      candidate: event.candidate.candidate,
-    });
-  } else {
-    console.log("End of candidates.");
-  }
+  handleCandidate(event.candidate, pc1Local, 'pc1: ', 'remote');
 }
 
 function iceCallback2Local(event) {
-  console.log("handleIceCandidate event: ", event);
-  if (event.candidate) {
-    sendMessage({
-      type: "candidate local 2",
-      label: event.candidate.sdpMLineIndex,
-      id: event.candidate.sdpMid,
-      candidate: event.candidate.candidate,
-    });
-  } else {
-    console.log("End of candidates.");
-  }
+  handleCandidate(event.candidate, pc2Remote, 'pc2: ', 'local');
 }
 
 function iceCallback2Remote(event) {
-  console.log("handleIceCandidate event: ", event);
-  if (event.candidate) {
-    sendMessage({
-      type: "candidate remote 2",
-      label: event.candidate.sdpMLineIndex,
-      id: event.candidate.sdpMid,
-      candidate: event.candidate.candidate,
-    });
-  } else {
-    console.log("End of candidates.");
-  }
+  handleCandidate(event.candidate, pc2Local, 'pc2: ', 'remote');
 }
 
 function handleCandidate(candidate, dest, prefix, type) {
@@ -403,13 +342,13 @@ function onAddIceCandidateError(error) {
 }
 
 // Create Offer
-function doCall() {ff
+function doCall() {
   console.log("Creating Offer...");
-  pc1Local
-    .createOffer(offerOptions)
-    .then(gotDescription1Local, onCreateSessionDescriptionError);
-  pc2Local.createOffer(offerOptions)
-    .then(gotDescription2Local, onCreateSessionDescriptionError);
+  // pc1Local
+  //   .createOffer(offerOptions)
+  //   .then(gotDescription1Local, onCreateSessionDescriptionError);
+  // pc2Local.createOffer(offerOptions)
+  //   .then(gotDescription2Local, onCreateSessionDescriptionError);
 }
 
 // Signalling error handler
@@ -419,40 +358,46 @@ function onCreateSessionDescriptionError(error) {
 
 function gotDescription1Local(desc) {
   pc1Local.setLocalDescription(desc);
-  console.log(`Offer from pc1Local\n${desc.sdp}`);
+  console.log("Offer from pc1Local");
+  // console.log(`Offer from pc1Local\n${desc.sdp}`);
   pc1Remote.setRemoteDescription(desc);
   // Since the 'remote' side has no media stream we need
   // to pass in the right constraints in order for it to
   // accept the incoming offer of audio and video.
-}
-
-// Create Answer
-function doAnswer() {
-  console.log("Sending answer to peer.");
   pc1Remote.createAnswer().then(gotDescription1Remote, onCreateSessionDescriptionError);
-  pc2Remote.createAnswer().then(gotDescription2Remote, onCreateSessionDescriptionError);
 }
 
 function gotDescription1Remote(desc) {
   pc1Remote.setLocalDescription(desc);
-  console.log(`Answer from pc1Remote\n${desc.sdp}`);
+  console.log("Answer from pc1Remote");
+  // console.log(`Answer from pc1Remote\n${desc.sdp}`);
   pc1Local.setRemoteDescription(desc);
 }
 
 function gotDescription2Local(desc) {
   pc2Local.setLocalDescription(desc);
-  console.log(`Offer from pc2Local\n${desc.sdp}`);
+  console.log("Offer from pc2Local");
+  // console.log(`Offer from pc2Local\n${desc.sdp}`);
   pc2Remote.setRemoteDescription(desc);
   // Since the 'remote' side has no media stream we need
   // to pass in the right constraints in order for it to
   // accept the incoming offer of audio and video.
+  pc2Remote.createAnswer().then(gotDescription2Remote, onCreateSessionDescriptionError);
 }
 
 function gotDescription2Remote(desc) {
   pc2Remote.setLocalDescription(desc);
-  console.log(`Answer from pc2Remote\n${desc.sdp}`);
+  console.log("Answer from pc2Remote");
+  // console.log(`Answer from pc2Remote\n${desc.sdp}`);
   pc2Local.setRemoteDescription(desc);
 }
+
+// Create Answer
+// function doAnswer() {
+//   console.log("Sending answer to peer.");
+//   pc1Remote.createAnswer().then(gotDescription1Remote, onCreateSessionDescriptionError);
+//   pc2Remote.createAnswer().then(gotDescription2Remote, onCreateSessionDescriptionError);
+// }
 
 /////////////////////////////////////////////////////////
 // Remote stream handlers...
