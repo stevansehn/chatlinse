@@ -123,7 +123,6 @@ socket.on("joined", function (room) {
   isChannelReady = true;
 });
 
-
 // Handle 'join' message coming back from server:
 // another peer is joining the channel
 socket.on("join 2", function (room) {
@@ -153,12 +152,8 @@ socket.on("message", function (message) {
     if (!isInitiator && !isStarted) {
       checkAndStart();
     }
-    // pc1Local.setRemoteDescription(new RTCSessionDescription(message));
-    // doAnswer();
   } else if (message.type === "answer" && isStarted) {
-    // pc1Local.setRemoteDescription(new RTCSessionDescription(message));
-  } 
-  else if (message === "bye" && isStarted) {
+  } else if (message === "bye" && isStarted) {
     handleRemoteHangup();
   }
 });
@@ -176,21 +171,10 @@ function sendMessage(message) {
 ////////////////////////////////////////////////////
 // Channel negotiation trigger function
 function checkAndStart() {
-  console.log("checkAndStart() first time");
+  
   if (!isStarted && typeof localStream != "undefined" && isChannelReady2) {
-    console.log("checkAndStart() second time");
+    
     createPeerConnection();
-
-    // window.localStream.getTracks().forEach(track => pc1Local.addTrack(track, window.localStream));
-    // console.log('Adding local stream to pc1Local');
-    // pc1Local
-    //   .createOffer(offerOptions)
-    //   .then(gotDescription1Local, onCreateSessionDescriptionError);
-
-    // window.localStream.getTracks().forEach(track => pc2Local.addTrack(track, window.localStream));
-    // console.log('Adding local stream to pc2Local');
-    // pc2Local.createOffer(offerOptions)
-    //   .then(gotDescription2Local, onCreateSessionDescriptionError);
 
     isStarted = true;
     if (isInitiator) {
@@ -227,7 +211,8 @@ function createPeerConnection() {
 
     window.localStream.getTracks().forEach(track => pc2Local.addTrack(track, window.localStream));
     console.log('Adding local stream to pc2Local');
-    pc2Local.createOffer(offerOptions)
+    pc2Local
+      .createOffer(offerOptions)
       .then(gotDescription2Local, onCreateSessionDescriptionError);
 
   } catch (e) {
@@ -344,11 +329,6 @@ function onAddIceCandidateError(error) {
 // Create Offer
 function doCall() {
   console.log("Creating Offer...");
-  // pc1Local
-  //   .createOffer(offerOptions)
-  //   .then(gotDescription1Local, onCreateSessionDescriptionError);
-  // pc2Local.createOffer(offerOptions)
-  //   .then(gotDescription2Local, onCreateSessionDescriptionError);
 }
 
 // Signalling error handler
