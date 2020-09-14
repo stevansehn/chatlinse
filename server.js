@@ -1,6 +1,6 @@
 var static = require("node-static");
 var http = require("http");
-var port = 8080;
+var port = 8000;
 // Create a node-static server instance
 var file = new static.Server();
 
@@ -46,11 +46,6 @@ io.sockets.on("connection", function (socket) {
       io.sockets.in(room).emit("join", room);
       socket.join(room);
       socket.emit("joined", room);
-    } else if (numClients == 2) {
-      // Second client joining...
-      io.sockets.in(room).emit("join 2", room);
-      socket.join(room);
-      socket.emit("joined 2", room);
     } else {
       // max two clients
       socket.emit("full", room);
