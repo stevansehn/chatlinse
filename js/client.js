@@ -30,7 +30,7 @@ var isStarted;
 var localStream;
 var remoteStream;
 // Peer Connection
-var pc;
+var pc, pc2;
 
 /////////////////////////////////////////////
 
@@ -50,6 +50,7 @@ if (room !== "") {
 var constraints = { video: true };
 
 pc = new RTCPeerConnection();
+pc2 = new RTCPeerConnection();
 
 // Call getUserMedia()
 navigator.mediaDevices
@@ -74,6 +75,7 @@ function handleUserMedia(stream) {
     // checkAndStart();
   }
   pc.addStream(localStream);
+  pc2.addStream(localStream);
 }
 
 function handleUserMediaError(error) {
@@ -126,6 +128,8 @@ socket.on("log", function (array) {
   console.log.apply(console, array);
 });
 
+var count = 0;
+var cand = 0;
 // Receive message from the other peer via the signalling server
 socket.on("message", function (message) {
   console.log("Received message:", message);
@@ -135,11 +139,44 @@ socket.on("message", function (message) {
     // if (!isInitiator && !isStarted) {
     //   checkAndStart();
     // }
-    pc.setRemoteDescription(new RTCSessionDescription(message));
-    doAnswer();
+    console.log("isInitiator = " + isInitiator);
+    console.log("isJoiner = " + isJoiner);
+    if (count == 0) {
+      console.log("pc1 called, count = " + count);
+      pc2.setRemoteDescription(new RTCSessionDescription(message));
+      doAnswer2();
+      count += 1;
+    } else {
+      console.log("pc2 called, count = " + count);
+      pc.setRemoteDescription(new RTCSessionDescription(message));
+      doAnswer();
+    }
   } else if (message.type === "answer" && isStarted) {
-    pc.setRemoteDescription(new RTCSessionDescription(message));
+    console.log("isInitiator = " + isInitiator);
+    console.log("isJoiner = " + isJoiner);
+    if (count == 0) {
+      console.log("pc1 answer called, count = " + count);
+      pc.setRemoteDescription(new RTCSessionDescription(message));
+      count += 1;
+    } else {
+      console.log("pc2 answer called, count = " + count);
+      pc2.setRemoteDescription(new RTCSessionDescription(message));
+    }
   } else if (message.type === "candidate" && isStarted) {
+    console.log("isInitiator = " + isInitiator);
+    console.log("isJoiner = " + isJoiner);
+    console.log("candidate count = " + cand);
+    console.log("btw, count = " + count);
+    var candidate = new RTCIceCandidate({
+      sdpMLineIndex: message.label,
+      candidate: message.candidate,
+    });
+    pc2.addIceCandidate(candidate);
+  } else if (message.type === "candidate 2" && isStarted) {
+    console.log("isInitiator = " + isInitiator);
+    console.log("isJoiner = " + isJoiner);
+    console.log("candidate count = " + cand);
+    console.log("btw, count = " + count);
     var candidate = new RTCIceCandidate({
       sdpMLineIndex: message.label,
       candidate: message.candidate,
@@ -186,6 +223,17 @@ function createPeerConnection() {
   }
   pc.onaddstream = handleRemoteStreamAdded;
   pc.onremovestream = handleRemoteStreamRemoved;
+
+  try {
+    // pc = new RTCPeerConnection();
+    pc2.onicecandidate = handleIceCandidate2;
+  } catch (e) {
+    console.log("Failed to create PeerConnection, exception: " + e.message);
+    alert("Cannot create RTCPeerConnection object.");
+    return;
+  }
+  pc2.onaddstream = handleRemoteStreamAdded;
+  pc2.onremovestream = handleRemoteStreamRemoved;
 
   // if (isInitiator) {
   //   try {
@@ -273,10 +321,25 @@ function handleIceCandidate(event) {
   }
 }
 
+function handleIceCandidate2(event) {
+  console.log("handleIceCandidate event: ", event);
+  if (event.candidate) {
+    sendMessage({
+      type: "candidate 2",
+      label: event.candidate.sdpMLineIndex,
+      id: event.candidate.sdpMid,
+      candidate: event.candidate.candidate,
+    });
+  } else {
+    console.log("End of candidates.");
+  }
+}
+
 // Create Offer
 function doCall() {
   console.log("Creating Offer...");
   pc.createOffer(setLocalAndSendMessage, onSignalingError);
+  pc2.createOffer(setLocalAndSendMessage2, onSignalingError);
 }
 
 // Signalling error handler
@@ -290,10 +353,20 @@ function doAnswer() {
   pc.createAnswer(setLocalAndSendMessage, onSignalingError);
 }
 
+function doAnswer2() {
+  console.log("Sending answer to peer.");
+  pc2.createAnswer(setLocalAndSendMessage2, onSignalingError);
+}
+
 // Success handler for both createOffer()
 // and createAnswer()
 function setLocalAndSendMessage(sessionDescription) {
   pc.setLocalDescription(sessionDescription);
+  sendMessage(sessionDescription);
+}
+
+function setLocalAndSendMessage2(sessionDescription) {
+  pc2.setLocalDescription(sessionDescription);
   sendMessage(sessionDescription);
 }
 
