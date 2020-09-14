@@ -8,7 +8,6 @@ window.onbeforeunload = function (e) {
 
 // Data channel information
 var sendChannel, receiveChannel;
-// var startButton = document.getElementById("startButton");
 var sendButton = document.getElementById("sendButton");
 var sendTextarea = document.getElementById("dataChannelSend");
 var receiveTextarea = document.getElementById("dataChannelReceive");
@@ -18,13 +17,12 @@ var localVideo = document.querySelector("#localVideo");
 var remoteVideo = document.querySelector("#remoteVideo");
 
 // Handler associated with 'Send' button
-// startButton.disabled = false;
-// startButton.onclick = start;
 sendButton.onclick = sendData;
 
 // Flags...
 var isChannelReady;
 var isInitiator;
+var isJoiner;
 var isStarted;
 
 // WebRTC data structures
@@ -42,7 +40,7 @@ var room = prompt("Enter room name:");
 // Connect to signalling server
 var socket = io.connect();
 
-// Send 'Create or join' message to singnalling server
+// Send 'Create or join' message to signalling server
 if (room !== "") {
   console.log("Create or join room", room);
   socket.emit("create or join", room);
@@ -51,8 +49,9 @@ if (room !== "") {
 // Set getUserMedia constraints
 var constraints = { video: true };
 
+pc = new RTCPeerConnection();
+
 // Call getUserMedia()
-// navigator.getUserMedia(constraints, handleUserMedia, handleUserMediaError);
 navigator.mediaDevices
   .getUserMedia(constraints)
   .then(handleUserMedia)
@@ -72,8 +71,9 @@ function handleUserMedia(stream) {
   console.log("Adding local stream.");
   sendMessage("got user media");
   if (isInitiator) {
-    checkAndStart();
+    // checkAndStart();
   }
+  pc.addStream(localStream);
 }
 
 function handleUserMediaError(error) {
@@ -92,6 +92,8 @@ function handleUserMediaError(error) {
 socket.on("created", function (room) {
   console.log("Created room " + room);
   isInitiator = true;
+  createPeerConnection();
+  isStarted = true;
 });
 
 // Handle 'full' message coming back from server:
@@ -113,6 +115,10 @@ socket.on("join", function (room) {
 socket.on("joined", function (room) {
   console.log("This peer has joined room " + room);
   isChannelReady = true;
+  createPeerConnection();
+  isStarted = true;
+  isJoiner = true;
+  doCall();
 });
 
 // Server-sent log message...
@@ -124,11 +130,11 @@ socket.on("log", function (array) {
 socket.on("message", function (message) {
   console.log("Received message:", message);
   if (message === "got user media") {
-    checkAndStart();
+    // checkAndStart();
   } else if (message.type === "offer") {
-    if (!isInitiator && !isStarted) {
-      checkAndStart();
-    }
+    // if (!isInitiator && !isStarted) {
+    //   checkAndStart();
+    // }
     pc.setRemoteDescription(new RTCSessionDescription(message));
     doAnswer();
   } else if (message.type === "answer" && isStarted) {
@@ -140,7 +146,7 @@ socket.on("message", function (message) {
     });
     pc.addIceCandidate(candidate);
   } else if (message === "bye" && isStarted) {
-    handleRemoteHangup();
+    //handleRemoteHangup();
   }
 });
 ////////////////////////////////////////////////
@@ -171,7 +177,7 @@ function checkAndStart() {
 // Peer Connection management...
 function createPeerConnection() {
   try {
-    pc = new RTCPeerConnection();
+    // pc = new RTCPeerConnection();
     pc.onicecandidate = handleIceCandidate;
   } catch (e) {
     console.log("Failed to create PeerConnection, exception: " + e.message);
