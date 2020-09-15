@@ -7,42 +7,31 @@ window.onbeforeunload = function (e) {
 };
 
 // Data channel information
-var sendChannel, receiveChannel, sendChannel2, receiveChannel2;
-// var startButton = document.getElementById("startButton");
+var sendChannel, receiveChannel;
 var sendButton = document.getElementById("sendButton");
 var sendTextarea = document.getElementById("dataChannelSend");
 var receiveTextarea = document.getElementById("dataChannelReceive");
 
 // HTML5 <video> elements
-const video1 = document.querySelector('video#video1');
-const video2 = document.querySelector('video#video2');
-const video3 = document.querySelector('video#video3');
+var localVideo = document.querySelector("#localVideo");
+var remoteVideo = document.querySelector("#remoteVideo");
 
 // Handler associated with 'Send' button
-// startButton.disabled = false;
-// startButton.onclick = start;
 sendButton.onclick = sendData;
 
 // Flags...
 var isChannelReady;
 var isChannelReady2;
 var isInitiator;
+var isJoiner;
 var isStarted;
 
 // WebRTC data structures
 // Streams
 var localStream;
 var remoteStream;
-var remoteStream2;
 // Peer Connection
-let pc1Local;
-let pc1Remote;
-let pc2Local;
-let pc2Remote;
-const offerOptions = {
-  offerToReceiveAudio: 1,
-  offerToReceiveVideo: 1
-};
+var pc, pc2;
 
 /////////////////////////////////////////////
 
@@ -52,7 +41,7 @@ var room = prompt("Enter room name:");
 // Connect to signalling server
 var socket = io.connect();
 
-// Send 'Create or join' message to singnalling server
+// Send 'Create or join' message to signalling server
 if (room !== "") {
   console.log("Create or join room", room);
   socket.emit("create or join", room);
@@ -60,6 +49,9 @@ if (room !== "") {
 
 // Set getUserMedia constraints
 var constraints = { audio: false, video: true };
+
+pc = new RTCPeerConnection();
+pc2 = new RTCPeerConnection();
 
 // Call getUserMedia()
 navigator.mediaDevices
@@ -75,13 +67,16 @@ console.log("Getting user media with constraints", constraints);
 // getUserMedia() handlers...
 /////////////////////////////////////////////
 function handleUserMedia(stream) {
-  video1.srcObject = stream;
-  window.localStream = stream;
+  localStream = stream;
+  // attachMediaStream(localVideo, stream);
+  localVideo.srcObject = stream;
   console.log("Adding local stream.");
   sendMessage("got user media");
   if (isInitiator) {
-    checkAndStart();
+    // checkAndStart();
   }
+  pc.addStream(localStream);
+  pc2.addStream(localStream);
 }
 
 function handleUserMediaError(error) {
@@ -100,6 +95,8 @@ function handleUserMediaError(error) {
 socket.on("created", function (room) {
   console.log("Created room " + room);
   isInitiator = true;
+  createPeerConnection();
+  isStarted = true;
 });
 
 // Handle 'full' message coming back from server:
@@ -121,21 +118,10 @@ socket.on("join", function (room) {
 socket.on("joined", function (room) {
   console.log("This peer has joined room " + room);
   isChannelReady = true;
-});
-
-// Handle 'join' message coming back from server:
-// another peer is joining the channel
-socket.on("join 2", function (room) {
-  console.log("Another peer made a request to join room " + room);
-  console.log("This peer is the initiator of room " + room + "!");
-  isChannelReady2 = true;
-});
-
-// Handle 'joined' message coming back from server:
-// this is the second peer joining the channel
-socket.on("joined 2", function (room) {
-  console.log("This peer has joined room " + room);
-  isChannelReady2 = true;
+  createPeerConnection();
+  isStarted = true;
+  isJoiner = true;
+  doCall();
 });
 
 // Server-sent log message...
@@ -143,18 +129,62 @@ socket.on("log", function (array) {
   console.log.apply(console, array);
 });
 
+var count = 0;
+var cand = 0;
 // Receive message from the other peer via the signalling server
 socket.on("message", function (message) {
   console.log("Received message:", message);
   if (message === "got user media") {
-    checkAndStart();
+    // checkAndStart();
   } else if (message.type === "offer") {
-    if (!isInitiator && !isStarted) {
-      checkAndStart();
+    // if (!isInitiator && !isStarted) {
+    //   checkAndStart();
+    // }
+    console.log("isInitiator = " + isInitiator);
+    console.log("isJoiner = " + isJoiner);
+    if (count == 0) {
+      console.log("pc1 called, count = " + count);
+      pc2.setRemoteDescription(new RTCSessionDescription(message));
+      doAnswer2();
+      count += 1;
+    } else {
+      console.log("pc2 called, count = " + count);
+      pc.setRemoteDescription(new RTCSessionDescription(message));
+      doAnswer();
     }
   } else if (message.type === "answer" && isStarted) {
+    console.log("isInitiator = " + isInitiator);
+    console.log("isJoiner = " + isJoiner);
+    if (count == 0) {
+      console.log("pc1 answer called, count = " + count);
+      pc.setRemoteDescription(new RTCSessionDescription(message));
+      count += 1;
+    } else {
+      console.log("pc2 answer called, count = " + count);
+      pc2.setRemoteDescription(new RTCSessionDescription(message));
+    }
+  } else if (message.type === "candidate" && isStarted) {
+    console.log("isInitiator = " + isInitiator);
+    console.log("isJoiner = " + isJoiner);
+    console.log("candidate count = " + cand);
+    console.log("btw, count = " + count);
+    var candidate = new RTCIceCandidate({
+      sdpMLineIndex: message.label,
+      candidate: message.candidate,
+    });
+    pc2.addIceCandidate(candidate);
+  } else if (message.type === "candidate 2" && isStarted) {
+    console.log("isInitiator = " + isInitiator);
+    console.log("isJoiner = " + isJoiner);
+    console.log("candidate count = " + cand);
+    console.log("btw, count = " + count);
+    var candidate = new RTCIceCandidate({
+      sdpMLineIndex: message.label,
+      candidate: message.candidate,
+    });
+    pc.addIceCandidate(candidate);
   } else if (message === "bye" && isStarted) {
-    handleRemoteHangup();
+    //handleRemoteHangup();
   }
 });
 ////////////////////////////////////////////////
@@ -189,66 +219,49 @@ function createPeerConnection() {
   const servers = null;
 
   try {
-    pc1Local = new RTCPeerConnection(servers);
-    pc1Remote = new RTCPeerConnection(servers);
-    pc1Remote.ontrack = gotRemoteStream1;
-    pc1Local.onicecandidate = iceCallback1Local;
-    pc1Remote.onicecandidate = iceCallback1Remote;
-    console.log('pc1: created local and remote peer connection objects');
-
-    pc2Local = new RTCPeerConnection(servers);
-    pc2Remote = new RTCPeerConnection(servers);
-    pc2Remote.ontrack = gotRemoteStream2;
-    pc2Local.onicecandidate = iceCallback2Local;
-    pc2Remote.onicecandidate = iceCallback2Remote;
-    console.log('pc2: created local and remote peer connection objects');
-
-    window.localStream.getTracks().forEach(track => pc1Local.addTrack(track, window.localStream));
-    console.log('Adding local stream to pc1Local');
-    pc1Local
-      .createOffer(offerOptions)
-      .then(gotDescription1Local, onCreateSessionDescriptionError);
-
-    window.localStream.getTracks().forEach(track => pc2Local.addTrack(track, window.localStream));
-    console.log('Adding local stream to pc2Local');
-    pc2Local
-      .createOffer(offerOptions)
-      .then(gotDescription2Local, onCreateSessionDescriptionError);
-
+    // pc = new RTCPeerConnection();
+    pc.onicecandidate = handleIceCandidate;
   } catch (e) {
     console.log("Failed to create local and remote peer connection objects, exception: " + e.message);
     alert("Cannot create RTCPeerConnection object.");
     return;
   }
 
-  if (isInitiator) {
-    try {
-      // Create a reliable data channel
-      sendChannel = pc1Local.createDataChannel("sendDataChannel");
-      console.log("Created send data channel");
-    } catch (e) {
-      alert("Failed to create data channel. ");
-      console.log("createDataChannel() failed with exception: " + e.message);
-    }
-    sendChannel.onopen = handleSendChannelStateChange;
-    sendChannel.onmessage = handleMessage;
-    sendChannel.onclose = handleSendChannelStateChange;
-  } else {
-    // Joiner
-    pc1Local.ondatachannel = gotReceiveChannel;
+  try {
+    // pc = new RTCPeerConnection();
+    pc2.onicecandidate = handleIceCandidate2;
+  } catch (e) {
+    console.log("Failed to create PeerConnection, exception: " + e.message);
+    alert("Cannot create RTCPeerConnection object.");
+    return;
   }
+  pc2.onaddstream = handleRemoteStreamAdded;
+  pc2.onremovestream = handleRemoteStreamRemoved;
+
+  // if (isInitiator) {
+  //   try {
+  //     // Create a reliable data channel
+  //     sendChannel = pc.createDataChannel("sendDataChannel");
+  //     trace("Created send data channel");
+  //   } catch (e) {
+  //     alert("Failed to create data channel. ");
+  //     trace("createDataChannel() failed with exception: " + e.message);
+  //   }
+  //   sendChannel.onopen = handleSendChannelStateChange;
+  //   sendChannel.onmessage = handleMessage;
+  //   sendChannel.onclose = handleSendChannelStateChange;
+  // } else {
+  //   // Joiner
+  //   pc.ondatachannel = gotReceiveChannel;
+  // }
 }
 
 // Data channel management
 function sendData() {
   var data = sendTextarea.value;
-  if (isInitiator) {
-    sendChannel.send(data);
-  }
-  else {
-    receiveChannel.send(data);
-  }
-  console.log("Sent data: " + data);
+  if (isInitiator) sendChannel.send(data);
+  else receiveChannel.send(data);
+  trace("Sent data: " + data);
 }
 
 // Handlers...
@@ -326,9 +339,25 @@ function onAddIceCandidateError(error) {
   console.log(`Failed to add ICE candidate: ${error.toString()}`);
 }
 
+function handleIceCandidate2(event) {
+  console.log("handleIceCandidate event: ", event);
+  if (event.candidate) {
+    sendMessage({
+      type: "candidate 2",
+      label: event.candidate.sdpMLineIndex,
+      id: event.candidate.sdpMid,
+      candidate: event.candidate.candidate,
+    });
+  } else {
+    console.log("End of candidates.");
+  }
+}
+
 // Create Offer
 function doCall() {
   console.log("Creating Offer...");
+  pc.createOffer(setLocalAndSendMessage, onSignalingError);
+  pc2.createOffer(setLocalAndSendMessage2, onSignalingError);
 }
 
 // Signalling error handler
@@ -347,53 +376,31 @@ function gotDescription1Local(desc) {
   pc1Remote.createAnswer().then(gotDescription1Remote, onCreateSessionDescriptionError);
 }
 
-function gotDescription1Remote(desc) {
-  pc1Remote.setLocalDescription(desc);
-  console.log("Answer from pc1Remote");
-  // console.log(`Answer from pc1Remote\n${desc.sdp}`);
-  pc1Local.setRemoteDescription(desc);
+function doAnswer2() {
+  console.log("Sending answer to peer.");
+  pc2.createAnswer(setLocalAndSendMessage2, onSignalingError);
 }
 
-function gotDescription2Local(desc) {
-  pc2Local.setLocalDescription(desc);
-  console.log("Offer from pc2Local");
-  // console.log(`Offer from pc2Local\n${desc.sdp}`);
-  pc2Remote.setRemoteDescription(desc);
-  // Since the 'remote' side has no media stream we need
-  // to pass in the right constraints in order for it to
-  // accept the incoming offer of audio and video.
-  pc2Remote.createAnswer().then(gotDescription2Remote, onCreateSessionDescriptionError);
+// Success handler for both createOffer()
+// and createAnswer()
+function setLocalAndSendMessage(sessionDescription) {
+  pc.setLocalDescription(sessionDescription);
+  sendMessage(sessionDescription);
 }
+
+function setLocalAndSendMessage2(sessionDescription) {
+  pc2.setLocalDescription(sessionDescription);
+  sendMessage(sessionDescription);
+}
+
+/////////////////////////////////////////////////////////
+// Remote stream handlers...
 
 function gotDescription2Remote(desc) {
   pc2Remote.setLocalDescription(desc);
   console.log("Answer from pc2Remote");
   // console.log(`Answer from pc2Remote\n${desc.sdp}`);
   pc2Local.setRemoteDescription(desc);
-}
-
-// Create Answer
-// function doAnswer() {
-//   console.log("Sending answer to peer.");
-//   pc1Remote.createAnswer().then(gotDescription1Remote, onCreateSessionDescriptionError);
-//   pc2Remote.createAnswer().then(gotDescription2Remote, onCreateSessionDescriptionError);
-// }
-
-/////////////////////////////////////////////////////////
-// Remote stream handlers...
-
-function gotRemoteStream1(e) {
-  if (video2.srcObject !== e.streams[0]) {
-    video2.srcObject = e.streams[0];
-    console.log('pc1: received remote stream');
-  }
-}
-
-function gotRemoteStream2(e) {
-  if (video3.srcObject !== e.streams[0]) {
-    video3.srcObject = e.streams[0];
-    console.log('pc2: received remote stream');
-  }
 }
 
 function handleRemoteStreamRemoved(event) {
@@ -420,16 +427,9 @@ function stop() {
   isStarted = false;
   if (sendChannel) sendChannel.close();
   if (receiveChannel) receiveChannel.close();
-  if (sendChannel2) sendChannel2.close();
-  if (receiveChannel2) receiveChannel2.close();
-  pc1Local.close();
-  pc1Remote.close();
-  pc2Local.close();
-  pc2Remote.close();
-  pc1Local = pc1Remote = null;
-  pc2Local = pc2Remote = null;
+  if (pc) pc.close();
+  pc = null;
   sendButton.disabled = true;
 }
 
 ///////////////////////////////////////////
-
