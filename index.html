@@ -5,20 +5,14 @@
     <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
     <meta content="utf-8" http-equiv="encoding">
 
-    <title>Very simple WebRTC application with a Node.js signalling server</title>
+    <title>Chat LINSE</title>
 
-<<<<<<< HEAD
     <link rel="icon" sizes="192x192" href="./images/logo.png">
 
 </head>
 
 <body>
     <h1>Chat LINSE master</h1>
-=======
-</head>
-
-<body>
->>>>>>> old-state
 
     <div id='mainDiv'>
 
@@ -28,43 +22,46 @@
                     Local video
                 </th>
                 <th>
-<<<<<<< HEAD
                     Remote Video 1
-=======
-                    'Remote' video
->>>>>>> old-state
                 </th>
             </tr>
             <tr>
                 <td>
-<<<<<<< HEAD
-                    <video id="video1" autoplay></video>
-                </td>
-                <td>
-                    <video id="video2" autoplay></video>
-=======
                     <video id="localVideo" autoplay></video>
                 </td>
                 <td>
                     <video id="remoteVideo" autoplay></video>
->>>>>>> old-state
                 </td>
             </tr>
             <tr>
-                <td align="center">
+                <!-- <td align="center">
                     <textarea rows="4" cols="60" id="dataChannelSend" disabled
                         placeholder="This will be enabled once the data channel is up..."></textarea>
-                </td>
+                </td> -->
                 <td align="center">
                     <textarea rows="4" cols="60" id="dataChannelReceive" disabled></textarea>
                 </td>
             </tr>
             <tr>
                 <td align="center">
-                    <!-- <button id="startButton">Start</button> -->
-                    <button id="sendButton" disabled>Send</button>
+                    <!-- <button id="sendButton" disabled>Send</button> -->
                 </td>
                 <td></td>
+            </tr>
+            <tr>
+                <th>
+                    Remote Video 2
+                </th>
+            </tr>
+            <tr>
+                <td>
+                    <video id="remoteVideo2" autoplay></video>
+                </td>
+            </tr>
+            <tr>
+                <td align="center">
+                    <textarea rows="4" cols="60" id="dataChannelReceive2" disabled></textarea>
+                </td>
             </tr>
         </table>
     </div>
